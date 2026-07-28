@@ -124,6 +124,84 @@ def test_output_flag_writes_file_not_stdout(tmp_path: Path) -> None:
     assert payload["passed"] is True
 
 
+def test_record_requires_exactly_one_source(tmp_path: Path) -> None:
+    result = runner.invoke(app, ["record", "--base-url", BASE])
+    assert result.exit_code == 2
+    assert "exactly one" in result.output
+
+
+def test_record_rejects_multiple_sources(tmp_path: Path) -> None:
+    config_path = _write_config(tmp_path)
+    result = runner.invoke(
+        app, ["record", "/old", "--from-config", str(config_path), "--base-url", BASE]
+    )
+    assert result.exit_code == 2
+    assert "exactly one" in result.output
+
+
+def test_record_requires_base_url_for_positional_paths() -> None:
+    result = runner.invoke(app, ["record", "/old"])
+    assert result.exit_code == 2
+    assert "--base-url" in result.output
+
+
+@respx.mock
+def test_record_positional_paths_writes_to_output(tmp_path: Path) -> None:
+    respx.head(f"{BASE}/old").mock(return_value=httpx.Response(301, headers={"location": "/new"}))
+    respx.head(f"{BASE}/new").mock(return_value=httpx.Response(200))
+
+    output_path = tmp_path / "snapshot.yml"
+    result = runner.invoke(
+        app, ["record", "/old", "--base-url", BASE, "--output", str(output_path)]
+    )
+
+    assert result.exit_code == 0
+    assert output_path.exists()
+    assert "from: /old" in output_path.read_text(encoding="utf-8")
+
+
+@respx.mock
+def test_record_from_config_reuses_base_url_and_from_list(tmp_path: Path) -> None:
+    respx.head(f"{BASE}/old").mock(return_value=httpx.Response(301, headers={"location": "/new"}))
+    respx.head(f"{BASE}/new").mock(return_value=httpx.Response(200))
+
+    config_path = _write_config(tmp_path)
+    result = runner.invoke(app, ["record", "--from-config", str(config_path)])
+
+    assert result.exit_code == 0
+    assert "base_url: https://example.org" in result.output
+    assert "from: /old" in result.output
+
+
+@respx.mock
+def test_record_from_file_reads_paths(tmp_path: Path) -> None:
+    respx.head(f"{BASE}/old").mock(return_value=httpx.Response(301, headers={"location": "/new"}))
+    respx.head(f"{BASE}/new").mock(return_value=httpx.Response(200))
+
+    paths_file = tmp_path / "paths.txt"
+    paths_file.write_text("/old\n", encoding="utf-8")
+    result = runner.invoke(app, ["record", "--from-file", str(paths_file), "--base-url", BASE])
+
+    assert result.exit_code == 0
+    assert "from: /old" in result.output
+
+
+def test_record_invalid_basic_auth_exits_2() -> None:
+    result = runner.invoke(app, ["record", "/old", "--base-url", BASE, "--basic-auth", "no-colon"])
+    assert result.exit_code == 2
+    assert "--basic-auth" in result.output
+
+
+@respx.mock
+def test_record_error_exits_2(tmp_path: Path) -> None:
+    respx.head(f"{BASE}/no-redirect").mock(return_value=httpx.Response(200))
+
+    result = runner.invoke(app, ["record", "/no-redirect", "--base-url", BASE])
+
+    assert result.exit_code == 2
+    assert "did not redirect" in result.output
+
+
 @respx.mock
 def test_extra_header_and_basic_auth_reach_request(tmp_path: Path) -> None:
     route = respx.head(f"{BASE}/old").mock(
