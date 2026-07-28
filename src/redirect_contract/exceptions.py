@@ -11,6 +11,10 @@ class ConfigError(Exception):
     """
 
 
+class RecordError(Exception):
+    """A path could not be probed while building a redirects.yml snapshot."""
+
+
 class InterpolationError(ConfigError):
     """A ``${VAR}`` placeholder referenced an environment variable that is not set."""
 

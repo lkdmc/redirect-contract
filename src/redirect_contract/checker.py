@@ -14,15 +14,15 @@ from redirect_contract.results import CheckReport, FailureReason, Hop, RuleResul
 # Extra hops fetched beyond a rule's configured max_hops, purely so a
 # too-many-hops failure can report the real chain instead of truncating
 # right at the limit.
-_HOP_REPORTING_BUFFER = 10
+HOP_REPORTING_BUFFER = 10
 
 
-class _ChainTimeout(Exception):
+class ChainTimeout(Exception):
     def __init__(self, partial_chain: list[Hop]) -> None:
         self.partial_chain = partial_chain
 
 
-class _ChainConnectionError(Exception):
+class ChainConnectionError(Exception):
     def __init__(self, partial_chain: list[Hop], message: str) -> None:
         self.partial_chain = partial_chain
         self.message = message
@@ -86,10 +86,10 @@ async def _check_rule(
         user, _, password = basic_auth_value.partition(":")
         auth = (user, password)
 
-    max_requests = resolved.max_hops + _HOP_REPORTING_BUFFER + 1
+    max_requests = resolved.max_hops + HOP_REPORTING_BUFFER + 1
 
     try:
-        chain, looped = await _fetch_chain(
+        chain, looped = await fetch_chain(
             client,
             start_url,
             headers=request_headers,
@@ -97,7 +97,7 @@ async def _check_rule(
             timeout=resolved.timeout,
             max_requests=max_requests,
         )
-    except _ChainTimeout as exc:
+    except ChainTimeout as exc:
         return RuleResult(
             rule=resolved,
             passed=False,
@@ -106,7 +106,7 @@ async def _check_rule(
             failure_reason=FailureReason.TIMEOUT,
             message="request timed out",
         )
-    except _ChainConnectionError as exc:
+    except ChainConnectionError as exc:
         return RuleResult(
             rule=resolved,
             passed=False,
@@ -163,7 +163,7 @@ async def _check_rule(
     )
 
 
-async def _fetch_chain(
+async def fetch_chain(
     client: httpx.AsyncClient,
     start_url: str,
     *,
@@ -192,9 +192,9 @@ async def _fetch_chain(
                 method, current_url, headers=headers, auth=auth, timeout=timeout
             )
         except httpx.TimeoutException as exc:
-            raise _ChainTimeout(chain) from exc
+            raise ChainTimeout(chain) from exc
         except httpx.HTTPError as exc:
-            raise _ChainConnectionError(chain, str(exc)) from exc
+            raise ChainConnectionError(chain, str(exc)) from exc
         requests_made += 1
 
         if method == "HEAD" and response.status_code in (405, 501):
