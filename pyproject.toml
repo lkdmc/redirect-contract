@@ -33,6 +33,12 @@ dependencies = [
   "PyYAML>=6.0",
 ]
 
+[project.urls]
+Homepage = "https://github.com/lkdmc/redirect-contract"
+Repository = "https://github.com/lkdmc/redirect-contract"
+Changelog = "https://github.com/lkdmc/redirect-contract/blob/master/CHANGELOG.md"
+Issues = "https://github.com/lkdmc/redirect-contract/issues"
+
 [project.scripts]
 redirect-contract = "redirect_contract.cli:app"
 
